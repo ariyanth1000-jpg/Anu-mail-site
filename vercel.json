@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/tempmail.js": {
+      "runtime": "nodejs20.x"
+    }
+  }
+}
