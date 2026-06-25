@@ -1,34 +1,34 @@
 const API = "/api/tempmail";
-
 let currentEmail = localStorage.getItem("temp_mail") || "";
-let autoLoading = false;
 
 if (currentEmail) {
   emailBox.innerText = currentEmail;
-  loadInbox(true);
+  loadInbox();
 }
 
 setInterval(() => {
-  if (currentEmail && !autoLoading) {
-    loadInbox(true);
+  if (currentEmail) {
+    loadInbox();
   }
-}, 5000);
+}, 3000);
 
 function status(t) {
   document.getElementById("status").innerText = t;
 }
 
 async function api(action, params = "") {
-  const res = await fetch(API + "?action=" + action + params + "&_=" + Date.now(), {
-    cache: "no-store"
-  });
-
+  const res = await fetch(API + "?action=" + action + params);
   return await res.json();
 }
 
 function getOTP(text) {
   const match = String(text || "").match(/\b\d{4,8}\b/);
   return match ? match[0] : "";
+}
+
+function copyOTP(code) {
+  navigator.clipboard.writeText(code);
+  status("OTP copied ✅");
 }
 
 async function createMail() {
@@ -44,7 +44,7 @@ async function createMail() {
       localStorage.setItem("temp_mail", email);
       emailBox.innerText = email;
       status("Email created ✅");
-      loadInbox(true);
+      loadInbox();
     } else {
       status("Create failed ❌");
       console.log(data);
@@ -61,13 +61,10 @@ function copyMail() {
   status("Email copied ✅");
 }
 
-async function loadInbox(silent = false) {
+async function loadInbox() {
   if (!currentEmail) return status("Create mail first");
 
-  if (autoLoading) return;
-  autoLoading = true;
-
-  if (!silent) status("Checking inbox...");
+  status("Checking inbox...");
 
   try {
     const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
@@ -76,15 +73,14 @@ async function loadInbox(silent = false) {
     inbox.innerHTML = "";
 
     if (!Array.isArray(emails) || emails.length === 0) {
-      if (!silent) status("No mail received yet");
-      return;
+      return status("No mail received yet");
     }
 
-    if (!silent) status("Inbox loaded ✅");
+    status("Inbox loaded ✅");
 
-    emails.slice().reverse().forEach(mail => {
-      const uuid = mail.uuid || mail.id || "";
-      const code = getOTP(mail.subject || "");
+    emails.forEach(mail => {
+      const uuid = mail.uuid || mail.id;
+      const otp = getOTP(mail.subject || "");
 
       const div = document.createElement("div");
       div.className = "item";
@@ -94,13 +90,12 @@ async function loadInbox(silent = false) {
         <div class="small">From: ${mail.from || mail.sender || ""}</div>
         <div class="small">Time: ${mail.created_at || mail.date || ""}</div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div class="grid">
           ${
-            code
-              ? `<button style="background:#16a34a" onclick="copyOTP('${code}')">OTP : ${code}</button>`
-              : `<button disabled>No OTP</button>`
+            otp
+              ? `<button onclick="copyOTP('${otp}')" style="background:#16a34a">OTP: ${otp}</button>`
+              : `<button disabled style="background:#334155">No OTP</button>`
           }
-
           <button onclick="readMail('${uuid}', this)">Open Mail</button>
         </div>
 
@@ -111,15 +106,8 @@ async function loadInbox(silent = false) {
     });
 
   } catch (e) {
-    if (!silent) status("Inbox load failed ❌");
-  } finally {
-    autoLoading = false;
+    status("Inbox load failed ❌");
   }
-}
-
-function copyOTP(code) {
-  navigator.clipboard.writeText(code);
-  status("OTP copied ✅");
 }
 
 async function readMail(uuid, btn) {
