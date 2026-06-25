@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Anu mail Site</title>
+
 <style>
 *{box-sizing:border-box}
+
 body{
   margin:0;
   padding:15px;
@@ -14,6 +16,7 @@ body{
   background:linear-gradient(135deg,#020617,#0f172a,#1e293b);
   color:white;
 }
+
 .box{
   max-width:540px;
   margin:auto;
@@ -21,8 +24,8 @@ body{
   border-radius:22px;
   background:rgba(255,255,255,.08);
   border:1px solid rgba(255,255,255,.18);
-  box-shadow:0 20px 60px rgba(0,0,0,.35);
 }
+
 h1{
   text-align:center;
   margin:5px 0 20px;
@@ -30,8 +33,8 @@ h1{
   background:linear-gradient(90deg,#22c55e,#38bdf8,#facc15,#f472b6);
   -webkit-background-clip:text;
   color:transparent;
-  text-shadow:0 0 25px rgba(56,189,248,.35);
 }
+
 .mail{
   background:#020617;
   border:1px solid #334155;
@@ -42,12 +45,14 @@ h1{
   font-weight:bold;
   word-break:break-all;
 }
+
 .grid{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
   margin-top:12px;
 }
+
 button{
   padding:14px;
   border:0;
@@ -58,15 +63,19 @@ button{
   font-weight:bold;
   cursor:pointer;
 }
+
 button:active{transform:scale(.97)}
+
 .deleteBtn{background:linear-gradient(135deg,#dc2626,#ef4444)}
 .copyBtn{background:linear-gradient(135deg,#16a34a,#22c55e)}
+
 .info{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
   margin-top:12px;
 }
+
 .badge{
   background:#020617;
   border:1px solid #334155;
@@ -75,6 +84,7 @@ button:active{transform:scale(.97)}
   text-align:center;
   color:#cbd5e1;
 }
+
 .item{
   margin-top:12px;
   padding:13px;
@@ -82,22 +92,26 @@ button:active{transform:scale(.97)}
   border:1px solid #334155;
   border-radius:16px;
 }
+
 .subject{
   color:#38bdf8;
   font-size:18px;
   font-weight:bold;
 }
+
 .small{
   margin-top:6px;
   color:#cbd5e1;
   font-size:13px;
 }
+
 .mailBtns{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
   margin-top:12px;
 }
+
 .body{
   display:none;
   margin-top:10px;
@@ -108,12 +122,15 @@ button:active{transform:scale(.97)}
   max-height:320px;
   overflow:auto;
 }
+
 .status{
   text-align:center;
   margin-top:14px;
   color:#facc15;
-  font-size:20px;
+  font-size:18px;
+  word-break:break-word;
 }
+
 .loader{
   display:none;
   width:32px;
@@ -124,6 +141,7 @@ button:active{transform:scale(.97)}
   margin:14px auto 0;
   animation:spin 1s linear infinite;
 }
+
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -136,13 +154,13 @@ button:active{transform:scale(.97)}
   <div class="mail" id="emailBox">No email created</div>
 
   <div class="grid">
-    <button onclick="createMail()">Create Mail</button>
-    <button onclick="copyMail()">Copy Mail</button>
+    <button type="button" onclick="safeClick('createMail')">Create Mail</button>
+    <button type="button" onclick="safeClick('copyMail')">Copy Mail</button>
   </div>
 
   <div class="grid">
-    <button onclick="loadInbox()">Refresh</button>
-    <button class="deleteBtn" onclick="deleteMail()">Delete</button>
+    <button type="button" onclick="safeClick('loadInbox')">Refresh</button>
+    <button type="button" class="deleteBtn" onclick="safeClick('deleteMail')">Delete</button>
   </div>
 
   <div class="info">
@@ -151,11 +169,38 @@ button:active{transform:scale(.97)}
   </div>
 
   <div class="loader" id="loader"></div>
-  <div class="status" id="status"></div>
+  <div class="status" id="status">Ready ✅</div>
   <div id="inbox"></div>
 </div>
 
-<script src="script.js"></script>
+<script>
+function showReason(msg){
+  const s=document.getElementById("status");
+  if(s) s.innerText=msg;
+  console.error(msg);
+}
+
+function safeClick(fnName){
+  try{
+    if(typeof window[fnName] !== "function"){
+      showReason("Button not working ❌ Reason: script.js load হয়নি বা "+fnName+" function পাওয়া যায়নি");
+      return;
+    }
+    window[fnName]();
+  }catch(err){
+    showReason("Button error ❌ Reason: "+err.message);
+  }
+}
+
+window.addEventListener("error",function(e){
+  showReason("Script error ❌ Reason: "+e.message);
+});
+</script>
+
+<script src="script.js"
+onload="document.getElementById('status').innerText='Script loaded ✅';"
+onerror="document.getElementById('status').innerText='script.js load হয়নি ❌ ফাইলের নাম/location চেক করুন';">
+</script>
 
 </body>
 </html>
