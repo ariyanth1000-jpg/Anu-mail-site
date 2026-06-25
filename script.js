@@ -1,6 +1,8 @@
 const API = "/api/tempmail";
+
 let currentEmail = localStorage.getItem("temp_mail") || "";
-let mailIds = new Set();
+let loading = false;
+let openedMailId = "";
 
 if (currentEmail) {
   emailBox.innerText = currentEmail;
@@ -8,17 +10,19 @@ if (currentEmail) {
 }
 
 setInterval(() => {
-  if (currentEmail) {
+  if (currentEmail && !loading && !openedMailId) {
     loadInbox();
   }
-}, 3000);
+}, 1000);
 
 function status(t) {
   document.getElementById("status").innerText = t;
 }
 
 async function api(action, params = "") {
-  const res = await fetch(API + "?action=" + action + params + "&_=" + Date.now());
+  const res = await fetch(API + "?action=" + action + params + "&_=" + Date.now(), {
+    cache: "no-store"
+  });
   return await res.json();
 }
 
@@ -33,9 +37,10 @@ function copyOTP(code) {
 }
 
 async function createMail() {
+  openedMailId = "";
+  loading = true;
   status("Creating mail...");
   inbox.innerHTML = "";
-  mailIds.clear();
 
   try {
     const data = await api("create");
@@ -46,14 +51,16 @@ async function createMail() {
       localStorage.setItem("temp_mail", email);
       emailBox.innerText = email;
       status("Email created ✅");
+      loading = false;
       loadInbox();
     } else {
       status("Create failed ❌");
-      console.log(data);
     }
   } catch (e) {
     status("Server/API error ❌");
   }
+
+  loading = false;
 }
 
 function copyMail() {
@@ -64,30 +71,30 @@ function copyMail() {
 
 async function loadInbox() {
   if (!currentEmail) return status("Create mail first");
+  if (loading || openedMailId) return;
+
+  loading = true;
 
   try {
     const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
     const emails = data?.data || data || [];
 
+    inbox.innerHTML = "";
+
     if (!Array.isArray(emails) || emails.length === 0) {
-      if (mailIds.size === 0) status("No mail received yet");
+      status("No mail received yet");
+      loading = false;
       return;
     }
 
-    let newCount = 0;
+    status("Inbox loaded ✅");
 
-    emails.slice().reverse().forEach(mail => {
-      const uuid = mail.uuid || mail.id;
-      if (!uuid || mailIds.has(uuid)) return;
-
-      mailIds.add(uuid);
-      newCount++;
-
+    emails.forEach(mail => {
+      const uuid = mail.uuid || mail.id || "";
       const otp = getOTP(mail.subject || "");
 
       const div = document.createElement("div");
       div.className = "item";
-      div.id = "mail_" + uuid;
 
       div.innerHTML = `
         <div class="subject">${mail.subject || "No Subject"}</div>
@@ -106,50 +113,64 @@ async function loadInbox() {
         <div class="body" style="display:none"></div>
       `;
 
-      inbox.prepend(div);
+      inbox.appendChild(div);
     });
-
-    if (newCount > 0) {
-      status("Inbox updated ✅");
-    }
 
   } catch (e) {
     status("Inbox load failed ❌");
   }
+
+  loading = false;
 }
 
 async function readMail(uuid, btn) {
+  const body = btn.parentElement.nextElementSibling;
+
+  if (openedMailId === uuid && body.style.display === "block") {
+    openedMailId = "";
+    body.style.display = "none";
+    btn.innerText = "Open Mail";
+    status("Auto refresh resumed ✅");
+    loadInbox();
+    return;
+  }
+
+  openedMailId = uuid;
   btn.innerText = "Loading...";
+  status("Auto refresh paused while mail is open");
 
   try {
     const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
     const mail = data?.data || data;
 
-    const body = btn.parentElement.nextElementSibling;
     body.style.display = "block";
     body.innerHTML = mail.body || mail.html || mail.text || "No body found";
 
-    btn.innerText = "Opened ✅";
+    btn.innerText = "Close Mail";
   } catch (e) {
+    openedMailId = "";
     btn.innerText = "Failed ❌";
+    status("Mail open failed ❌");
   }
 }
 
 async function deleteMail() {
   if (!currentEmail) return status("No email found");
 
+  openedMailId = "";
+  loading = true;
+
   try {
     await api("delete", "&email=" + encodeURIComponent(currentEmail));
 
     localStorage.removeItem("temp_mail");
     currentEmail = "";
-    mailIds.clear();
-
     emailBox.innerText = "No email created";
     inbox.innerHTML = "";
     status("Deleted ✅");
-
   } catch (e) {
     status("Delete failed ❌");
   }
+
+  loading = false;
 }
