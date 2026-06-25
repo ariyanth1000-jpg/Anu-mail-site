@@ -48,11 +48,27 @@ if(currentEmail){
   loadInbox();
 }
 
+setInterval(()=>{
+  if(currentEmail){
+    loadInbox();
+  }
+},3000);
+
 function status(t){ document.getElementById("status").innerText = t; }
 
 async function api(action, params=""){
   const res = await fetch(API + "?action=" + action + params);
   return await res.json();
+}
+
+function getOTP(text){
+  const match = String(text || "").match(/\b\d{4,8}\b/);
+  return match ? match[0] : "";
+}
+
+function copyOTP(code){
+  navigator.clipboard.writeText(code);
+  status("OTP copied ✅");
 }
 
 async function createMail(){
@@ -96,13 +112,23 @@ async function loadInbox(){
 
     emails.forEach(mail=>{
       const uuid = mail.uuid || mail.id;
+      const otp = getOTP(mail.subject || "");
       const div = document.createElement("div");
       div.className = "item";
       div.innerHTML = `
         <div class="subject">${mail.subject || "No Subject"}</div>
         <div class="small">From: ${mail.from || mail.sender || ""}</div>
         <div class="small">Time: ${mail.created_at || mail.date || ""}</div>
-        <button onclick="readMail('${uuid}', this)">Open Mail</button>
+
+        <div class="grid">
+          ${
+            otp
+            ? `<button onclick="copyOTP('${otp}')" style="background:#16a34a">OTP: ${otp}</button>`
+            : `<button disabled style="background:#334155">No OTP</button>`
+          }
+          <button onclick="readMail('${uuid}', this)">Open Mail</button>
+        </div>
+
         <div class="body" style="display:none"></div>
       `;
       inbox.appendChild(div);
@@ -115,7 +141,7 @@ async function readMail(uuid, btn){
   try{
     const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
     const mail = data?.data || data;
-    const body = btn.nextElementSibling;
+    const body = btn.parentElement.nextElementSibling;
     body.style.display = "block";
     body.innerHTML = mail.body || mail.html || mail.text || "No body found";
     btn.innerText = "Opened ✅";
