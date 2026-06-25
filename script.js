@@ -13,7 +13,7 @@ setInterval(() => {
   if (currentEmail && !loading && !openedMailId) {
     loadInbox();
   }
-}, 1000);
+}, 10000);
 
 function status(t) {
   document.getElementById("status").innerText = t;
