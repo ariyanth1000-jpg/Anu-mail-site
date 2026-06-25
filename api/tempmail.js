@@ -2,182 +2,172 @@ const API = "/api/tempmail";
 
 let currentEmail = localStorage.getItem("temp_mail") || "";
 let inboxLoading = false;
-let lastMailIds = [];
+let autoTimer = null;
 
-if (currentEmail) {
+const emailBox = document.getElementById("emailBox");
+const inbox = document.getElementById("inbox");
+const statusBox = document.getElementById("status");
+
+if(currentEmail){
   emailBox.innerText = currentEmail;
   loadInbox(true);
 }
 
-// Auto Refresh (5 seconds)
-setInterval(() => {
-  if (currentEmail && !inboxLoading) {
-    loadInbox(true);
-  }
-}, 5000);
+startAutoRefresh();
 
-function status(text) {
-  document.getElementById("status").innerText = text;
+function status(text){
+  statusBox.innerText = text;
 }
 
-async function api(action, params = "") {
-  const res = await fetch(`${API}?action=${action}${params}`, {
-    cache: "no-store"
+function startAutoRefresh(){
+  if(autoTimer) clearInterval(autoTimer);
+
+  autoTimer = setInterval(()=>{
+    if(currentEmail && !inboxLoading){
+      loadInbox(true);
+    }
+  }, 5000);
+}
+
+async function api(action, params = ""){
+  const url = API + "?action=" + action + params + "&t=" + Date.now();
+
+  const res = await fetch(url, {
+    method:"GET",
+    cache:"no-store"
   });
 
-  if (!res.ok) throw new Error("API Error");
+  const text = await res.text();
 
-  return await res.json();
+  let data = {};
+  try{
+    data = text ? JSON.parse(text) : {};
+  }catch(e){
+    throw new Error("Invalid JSON");
+  }
+
+  if(!res.ok){
+    throw new Error(data.error || "API Error");
+  }
+
+  return data;
 }
 
-async function createMail() {
-  status("Creating email...");
+async function createMail(){
+  status("Creating mail...");
   inbox.innerHTML = "";
 
-  try {
+  try{
     const data = await api("create");
 
-    const email = data?.data?.email || data?.email;
+    const email =
+      data?.data?.email ||
+      data?.email ||
+      data?.address ||
+      "";
 
-    if (!email) {
+    if(!email){
       status("Create failed ❌");
+      console.log(data);
       return;
     }
 
     currentEmail = email;
-
     localStorage.setItem("temp_mail", email);
-
     emailBox.innerText = email;
 
-    lastMailIds = [];
-
     status("Email created ✅");
-
     loadInbox(true);
 
-  } catch (e) {
+  }catch(e){
     console.error(e);
     status("Server/API error ❌");
   }
 }
 
-function copyMail() {
-
-  if (!currentEmail) {
+function copyMail(){
+  if(!currentEmail){
     status("No email found");
     return;
   }
 
   navigator.clipboard.writeText(currentEmail);
-
   status("Email copied ✅");
 }
 
-async function loadInbox(silent = false) {
-
-  if (inboxLoading) return;
-
+async function loadInbox(silent = false){
+  if(inboxLoading) return;
   inboxLoading = true;
 
-  try {
-
-    if (!currentEmail) {
-      if (!silent) status("Create email first");
+  try{
+    if(!currentEmail){
+      if(!silent) status("Create mail first");
       return;
     }
 
-    if (!silent) status("Checking inbox...");
+    if(!silent) status("Checking inbox...");
 
     const data = await api(
       "inbox",
       "&email=" + encodeURIComponent(currentEmail)
     );
 
-    let emails = data?.data || data || [];
+    let emails =
+      data?.data ||
+      data?.emails ||
+      data?.messages ||
+      data ||
+      [];
 
-    if (!Array.isArray(emails))
+    if(!Array.isArray(emails)){
       emails = [];
-
-    emails.reverse();
-
-    const ids = emails.map(m => m.uuid || m.id);
-
-    if (
-      lastMailIds.length &&
-      JSON.stringify(ids) !== JSON.stringify(lastMailIds)
-    ) {
-
-      if (navigator.vibrate)
-        navigator.vibrate(150);
-
-      status("📩 New Mail Received");
     }
 
-    lastMailIds = ids;
+    emails = emails.slice().reverse();
 
     inbox.innerHTML = "";
 
-    if (emails.length === 0) {
-      if (!silent)
-        status("No mail received");
+    if(emails.length === 0){
+      if(!silent) status("No mail received yet");
       return;
     }
 
-    if (!silent)
-      status("Inbox updated ✅");
+    status("Inbox loaded ✅");
 
-    emails.forEach(mail => {
-
-      const uuid = mail.uuid || mail.id || "";
+    emails.forEach(mail=>{
+      const uuid = mail.uuid || mail.id || mail.email_id || "";
 
       const div = document.createElement("div");
-
       div.className = "item";
 
       div.innerHTML = `
         <div class="subject">${mail.subject || "No Subject"}</div>
-
-        <div class="small">
-        From : ${mail.from || mail.sender || ""}
-        </div>
-
-        <div class="small">
-        ${mail.created_at || mail.date || ""}
-        </div>
-
-        <button onclick="readMail('${uuid}',this)">
-        Open Mail
-        </button>
-
-        <div class="body" style="display:none"></div>
+        <div class="small">From: ${mail.from || mail.sender || mail.from_email || ""}</div>
+        <div class="small">Time: ${mail.created_at || mail.date || mail.createdAt || ""}</div>
+        <button onclick="readMail('${uuid}', this)">Open Mail</button>
+        <div class="body"></div>
       `;
 
       inbox.appendChild(div);
-
     });
 
-  } catch (e) {
-
+  }catch(e){
     console.error(e);
-
-    if (!silent)
-      status("Inbox load failed ❌");
-
-  } finally {
-
+    if(!silent) status("Inbox load failed ❌");
+  }finally{
     inboxLoading = false;
-
   }
-
 }
 
-async function readMail(uuid, btn) {
+async function readMail(uuid, btn){
+  if(!uuid){
+    btn.innerText = "No ID";
+    return;
+  }
 
   btn.innerText = "Loading...";
 
-  try {
-
+  try{
     const data = await api(
       "read",
       "&uuid=" + encodeURIComponent(uuid)
@@ -186,62 +176,43 @@ async function readMail(uuid, btn) {
     const mail = data?.data || data;
 
     const body = btn.nextElementSibling;
-
     body.style.display = "block";
-
     body.innerHTML =
-      mail.html ||
       mail.body ||
+      mail.html ||
       mail.text ||
-      "No content";
+      mail.content ||
+      "No body found";
 
     btn.innerText = "Opened ✅";
 
-  } catch (e) {
-
+  }catch(e){
     console.error(e);
-
     btn.innerText = "Failed ❌";
-
   }
-
 }
 
-async function deleteMail() {
-
-  if (!currentEmail) {
-    status("No email");
+async function deleteMail(){
+  if(!currentEmail){
+    status("No email found");
     return;
   }
 
-  if (!confirm("Delete this email?"))
-    return;
-
-  try {
-
+  try{
     await api(
       "delete",
       "&email=" + encodeURIComponent(currentEmail)
     );
 
     localStorage.removeItem("temp_mail");
-
     currentEmail = "";
 
-    lastMailIds = [];
-
     emailBox.innerText = "No email created";
-
     inbox.innerHTML = "";
-
     status("Deleted ✅");
 
-  } catch (e) {
-
+  }catch(e){
     console.error(e);
-
     status("Delete failed ❌");
-
   }
-
 }
