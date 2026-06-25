@@ -1,189 +1,41 @@
-const API = "/api/tempmail";
+const BASE = "https://api.tempmail.co/v1";
 
-let currentEmail = localStorage.getItem("temp_mail") || "";
-let loading = false;
+export default async function handler(req, res) {
+  const { action, email, uuid } = req.query;
 
-if(currentEmail){
-  emailBox.innerText = currentEmail;
-  loadInbox(true);
-}
+  let path = "";
+  let method = "GET";
 
-setInterval(()=>{
-  if(currentEmail && !loading){
-    loadInbox(true);
-  }
-},5000);
-
-function status(t){
-  document.getElementById("status").innerText=t;
-}
-
-async function api(action,param=""){
-  const r=await fetch(API+"?action="+action+param+"&_="+Date.now(),{
-    cache:"no-store"
-  });
-  return await r.json();
-}
-
-async function createMail(){
-
-  status("Creating...");
-
-  try{
-
-    const d=await api("create");
-
-    currentEmail=d.data.email;
-
-    localStorage.setItem("temp_mail",currentEmail);
-
-    emailBox.innerText=currentEmail;
-
-    status("Email Created ✅");
-
-    loadInbox();
-
-  }catch(e){
-
-    status("Server/API Error ❌");
-
+  if (action === "create") {
+    path = "/addresses";
+    method = "POST";
+  } else if (action === "inbox") {
+    path = "/addresses/" + encodeURIComponent(email || "") + "/emails";
+  } else if (action === "read") {
+    path = "/emails/" + encodeURIComponent(uuid || "");
+  } else if (action === "delete") {
+    path = "/addresses/" + encodeURIComponent(email || "");
+    method = "DELETE";
+  } else {
+    return res.status(400).json({ error: "Invalid action" });
   }
 
-}
-
-function copyMail(){
-
-  if(!currentEmail) return;
-
-  navigator.clipboard.writeText(currentEmail);
-
-  status("Copied ✅");
-
-}
-
-async function loadInbox(silent=false){
-
-  if(loading) return;
-
-  loading=true;
-
-  try{
-
-    const d=await api(
-      "inbox",
-      "&email="+encodeURIComponent(currentEmail)
-    );
-
-    const mails=d.data||[];
-
-    inbox.innerHTML="";
-
-    if(mails.length==0){
-
-      if(!silent)
-      status("No Mail Yet");
-
-      loading=false;
-
-      return;
-
-    }
-
-    mails.reverse();
-
-    mails.forEach(m=>{
-
-      inbox.innerHTML+=`
-      <div class="item">
-
-      <div class="subject">
-      ${m.subject||"No Subject"}
-      </div>
-
-      <div class="small">
-      From : ${m.from||""}
-      </div>
-
-      <div class="small">
-      ${m.created_at||""}
-      </div>
-
-      <button onclick="readMail('${m.uuid}',this)">
-      Open Mail
-      </button>
-
-      <div class="body" style="display:none"></div>
-
-      </div>`;
-
+  try {
+    const apiRes = await fetch(BASE + path, {
+      method,
+      headers: {
+        Authorization: "Bearer " + process.env.TEMPMAIL_TOKEN,
+        Accept: "application/json"
+      }
     });
 
-    if(!silent)
-    status("Inbox Loaded ✅");
+    const text = await apiRes.text();
 
-  }catch(e){
+    res.status(apiRes.status);
+    res.setHeader("Content-Type", "application/json");
+    res.send(text || "{}");
 
-    if(!silent)
-    status("Load Failed ❌");
-
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
-
-  loading=false;
-
-}
-
-async function readMail(id,btn){
-
-  btn.innerText="Loading...";
-
-  try{
-
-    const d=await api(
-      "read",
-      "&uuid="+id
-    );
-
-    const body=btn.nextElementSibling;
-
-    body.style.display="block";
-
-    body.innerHTML=d.data.body||"No Body";
-
-    btn.innerText="Opened ✅";
-
-  }catch(e){
-
-    btn.innerText="Failed";
-
-  }
-
-}
-
-async function deleteMail(){
-
-  if(!currentEmail) return;
-
-  try{
-
-    await api(
-      "delete",
-      "&email="+encodeURIComponent(currentEmail)
-    );
-
-    localStorage.removeItem("temp_mail");
-
-    currentEmail="";
-
-    emailBox.innerText="No email created";
-
-    inbox.innerHTML="";
-
-    status("Deleted ✅");
-
-  }catch(e){
-
-    status("Delete Failed ❌");
-
-  }
-
 }
