@@ -3,137 +3,196 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Temp Mail</title>
+<title>Temp Mail Inbox</title>
+
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial;min-height:100vh;background:#020617;color:white;padding:15px}
-.box{max-width:520px;margin:auto;background:#0f172a;border:1px solid #334155;border-radius:20px;padding:18px}
-h2{text-align:center}
-.mail{background:#020617;border:1px solid #334155;padding:15px;border-radius:14px;text-align:center;font-weight:bold;word-break:break-all}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:12px;background:#2563eb;color:white;font-weight:bold}
-.item{margin-top:12px;background:#111827;border:1px solid #334155;border-radius:14px;padding:12px}
-.subject{color:#38bdf8;font-weight:bold}
-.small{font-size:13px;color:#cbd5e1;margin-top:5px}
-.body{background:white;color:#111;padding:12px;border-radius:12px;margin-top:10px;max-height:320px;overflow:auto}
-.status{text-align:center;color:#facc15;margin-top:12px}
+
+body{
+  margin:0;
+  padding:15px;
+  font-family:Arial,sans-serif;
+  min-height:100vh;
+  background:linear-gradient(135deg,#020617,#0f172a,#1e293b);
+  color:#fff;
+}
+
+.box{
+  max-width:540px;
+  margin:auto;
+  padding:18px;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:20px;
+}
+
+h2{
+  text-align:center;
+  margin-top:0;
+  font-size:32px;
+}
+
+.mail{
+  background:#020617;
+  border:1px solid #334155;
+  padding:15px;
+  border-radius:14px;
+  text-align:center;
+  font-size:19px;
+  font-weight:bold;
+  word-break:break-all;
+}
+
+.otpBox{
+  display:none;
+  margin-top:12px;
+  padding:14px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#16a34a,#22c55e);
+  text-align:center;
+  font-size:24px;
+  font-weight:bold;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px;
+}
+
+button{
+  padding:14px;
+  border:0;
+  border-radius:12px;
+  background:#2563eb;
+  color:white;
+  font-size:16px;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+button:active{
+  transform:scale(.97);
+}
+
+.deleteBtn{
+  background:#dc2626;
+}
+
+.copyBtn{
+  background:#16a34a;
+}
+
+.info{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:12px;
+  font-size:13px;
+  color:#cbd5e1;
+}
+
+.badge{
+  background:#020617;
+  border:1px solid #334155;
+  padding:8px 10px;
+  border-radius:12px;
+  flex:1;
+  text-align:center;
+}
+
+.item{
+  margin-top:12px;
+  padding:12px;
+  background:#0f172a;
+  border:1px solid #334155;
+  border-radius:14px;
+}
+
+.subject{
+  color:#38bdf8;
+  font-size:17px;
+  font-weight:bold;
+}
+
+.small{
+  margin-top:5px;
+  font-size:13px;
+  color:#cbd5e1;
+}
+
+.body{
+  display:none;
+  margin-top:10px;
+  padding:12px;
+  background:#fff;
+  color:#111;
+  border-radius:10px;
+  max-height:320px;
+  overflow:auto;
+}
+
+.status{
+  margin-top:14px;
+  text-align:center;
+  font-size:18px;
+  color:#facc15;
+}
+
+.loader{
+  display:none;
+  width:32px;
+  height:32px;
+  border:4px solid #334155;
+  border-top:4px solid #38bdf8;
+  border-radius:50%;
+  margin:14px auto 0;
+  animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+  to{transform:rotate(360deg)}
+}
 </style>
 </head>
+
 <body>
 
 <div class="box">
-  <h2>📩 Temp Mail Inbox</h2>
-  <div class="mail" id="emailBox">No email created</div>
 
-  <div class="grid">
-    <button onclick="createMail()">Create Mail</button>
-    <button onclick="copyMail()">Copy Mail</button>
-  </div>
+<h2>📩 Temp Mail Inbox</h2>
 
-  <div class="grid">
-    <button onclick="loadInbox()">Refresh</button>
-    <button onclick="deleteMail()">Delete</button>
-  </div>
+<div class="mail" id="emailBox">No email created</div>
 
-  <div class="status" id="status"></div>
-  <div id="inbox"></div>
+<div class="otpBox" id="otpBox">
+OTP: <span id="otpText"></span>
+<br>
+<button class="copyBtn" onclick="copyOTP()">Copy OTP</button>
 </div>
 
-<script>
-const API = "/api/tempmail";
-let currentEmail = localStorage.getItem("temp_mail") || "";
+<div class="grid">
+<button onclick="createMail()">Create Mail</button>
+<button onclick="copyMail()">Copy Mail</button>
+</div>
 
-if(currentEmail){
-  emailBox.innerText = currentEmail;
-  loadInbox();
-}
+<div class="grid">
+<button onclick="loadInbox()">Refresh</button>
+<button class="deleteBtn" onclick="deleteMail()">Delete</button>
+</div>
 
-function status(t){ document.getElementById("status").innerText = t; }
+<div class="info">
+  <div class="badge" id="mailCount">Inbox: 0</div>
+  <div class="badge" id="refreshInfo">Auto: 5s</div>
+</div>
 
-async function api(action, params=""){
-  const res = await fetch(API + "?action=" + action + params);
-  return await res.json();
-}
+<div class="loader" id="loader"></div>
+<div id="status" class="status"></div>
+<div id="inbox"></div>
 
-async function createMail(){
-  status("Creating mail...");
-  inbox.innerHTML = "";
-  try{
-    const data = await api("create");
-    const email = data?.data?.email || data?.email;
-    if(email){
-      currentEmail = email;
-      localStorage.setItem("temp_mail", email);
-      emailBox.innerText = email;
-      status("Email created ✅");
-      loadInbox();
-    }else{
-      status("Create failed ❌");
-      console.log(data);
-    }
-  }catch(e){ status("Server/API error ❌"); }
-}
+</div>
 
-function copyMail(){
-  if(!currentEmail) return status("No email found");
-  navigator.clipboard.writeText(currentEmail);
-  status("Email copied ✅");
-}
-
-async function loadInbox(){
-  if(!currentEmail) return status("Create mail first");
-  status("Checking inbox...");
-  try{
-    const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
-    const emails = data?.data || data || [];
-    inbox.innerHTML = "";
-
-    if(!Array.isArray(emails) || emails.length === 0){
-      return status("No mail received yet");
-    }
-
-    status("Inbox loaded ✅");
-
-    emails.forEach(mail=>{
-      const uuid = mail.uuid || mail.id;
-      const div = document.createElement("div");
-      div.className = "item";
-      div.innerHTML = `
-        <div class="subject">${mail.subject || "No Subject"}</div>
-        <div class="small">From: ${mail.from || mail.sender || ""}</div>
-        <div class="small">Time: ${mail.created_at || mail.date || ""}</div>
-        <button onclick="readMail('${uuid}', this)">Open Mail</button>
-        <div class="body" style="display:none"></div>
-      `;
-      inbox.appendChild(div);
-    });
-  }catch(e){ status("Inbox load failed ❌"); }
-}
-
-async function readMail(uuid, btn){
-  btn.innerText = "Loading...";
-  try{
-    const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
-    const mail = data?.data || data;
-    const body = btn.nextElementSibling;
-    body.style.display = "block";
-    body.innerHTML = mail.body || mail.html || mail.text || "No body found";
-    btn.innerText = "Opened ✅";
-  }catch(e){ btn.innerText = "Failed ❌"; }
-}
-
-async function deleteMail(){
-  if(!currentEmail) return status("No email found");
-  try{
-    await api("delete", "&email=" + encodeURIComponent(currentEmail));
-    localStorage.removeItem("temp_mail");
-    currentEmail = "";
-    emailBox.innerText = "No email created";
-    inbox.innerHTML = "";
-    status("Deleted ✅");
-  }catch(e){ status("Delete failed ❌"); }
-}
-</script>
+<script src="script.js"></script>
 
 </body>
 </html>
