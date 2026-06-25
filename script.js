@@ -10,7 +10,9 @@ if(currentEmail){
 }
 
 setInterval(()=>{
-  if(currentEmail&&!loading) loadInbox(true);
+  if(currentEmail && !loading){
+    loadInbox(true);
+  }
 },5000);
 
 function status(t){
@@ -18,31 +20,39 @@ function status(t){
 }
 
 function showLoader(v){
-  loader.style.display=v?"block":"none";
+  loader.style.display=v ? "block" : "none";
 }
 
 async function api(action,param=""){
   const r=await fetch(API+"?action="+action+param+"&_="+Date.now(),{
     cache:"no-store"
   });
+
   const d=await r.json();
-  if(!r.ok) throw new Error(d.error||"API Error");
+
+  if(!r.ok){
+    throw new Error(d.error || "API Error");
+  }
+
   return d;
 }
 
 function findOTP(text){
   const m=String(text||"").match(/\b\d{4,8}\b/);
-  return m?m[0]:"";
+  return m ? m[0] : "";
 }
 
 async function createMail(){
+  if(loading) return;
+
+  loading=true;
   status("Creating...");
   showLoader(true);
   inbox.innerHTML="";
 
   try{
     const d=await api("create");
-    const email=d?.data?.email||d?.email;
+    const email=d?.data?.email || d?.email;
 
     if(!email){
       status("Create failed ❌");
@@ -51,28 +61,40 @@ async function createMail(){
 
     currentEmail=email;
     lastCount=0;
+
     localStorage.setItem("temp_mail",email);
     emailBox.innerText=email;
+    mailCount.innerText="Inbox: 0";
+
     status("Email Created ✅");
-    loadInbox(true);
 
   }catch(e){
     status("Server/API Error ❌");
   }finally{
+    loading=false;
     showLoader(false);
   }
+
+  setTimeout(()=>loadInbox(true),300);
 }
 
 function copyMail(){
-  if(!currentEmail) return status("No email found");
+  if(!currentEmail){
+    return status("No email found");
+  }
+
   navigator.clipboard.writeText(currentEmail);
   status("Email copied ✅");
 }
 
 async function loadInbox(silent=false){
   if(loading) return;
+
   loading=true;
-  if(!silent) showLoader(true);
+
+  if(!silent){
+    showLoader(true);
+  }
 
   try{
     if(!currentEmail){
@@ -80,18 +102,25 @@ async function loadInbox(silent=false){
       return;
     }
 
-    const d=await api("inbox","&email="+encodeURIComponent(currentEmail));
-    let mails=d.data||[];
+    const d=await api(
+      "inbox",
+      "&email="+encodeURIComponent(currentEmail)
+    );
 
-    if(!Array.isArray(mails)) mails=[];
+    let mails=d.data || [];
+
+    if(!Array.isArray(mails)){
+      mails=[];
+    }
 
     mailCount.innerText="Inbox: "+mails.length;
 
-    if(mails.length>lastCount&&lastCount!==0){
+    if(mails.length > lastCount && lastCount !== 0){
       status("New Mail Received 🔔");
-      if(navigator.vibrate) navigator.vibrate(200);
+      if(navigator.vibrate){
+        navigator.vibrate(200);
+      }
     }
-
     lastCount=mails.length;
     inbox.innerHTML="";
 
@@ -103,12 +132,14 @@ async function loadInbox(silent=false){
     mails.reverse();
 
     mails.forEach(m=>{
-      const code=findOTP(m.subject||"");
+      const code=findOTP(m.subject || "");
+      const uuid=m.uuid || m.id || "";
+
       inbox.innerHTML+=`
       <div class="item">
-        <div class="subject">${m.subject||"No Subject"}</div>
-        <div class="small">From : ${m.from||""}</div>
-        <div class="small">${m.created_at||""}</div>
+        <div class="subject">${m.subject || "No Subject"}</div>
+        <div class="small">From : ${m.from || ""}</div>
+        <div class="small">${m.created_at || ""}</div>
 
         <div class="mailBtns">
           ${
@@ -116,7 +147,8 @@ async function loadInbox(silent=false){
             ? `<button class="copyBtn" onclick="copyCode('${code}')">OTP: ${code}</button>`
             : `<button class="copyBtn" disabled>No OTP</button>`
           }
-          <button onclick="readMail('${m.uuid}',this)">Open Mail</button>
+
+          <button onclick="readMail('${uuid}',this)">Open Mail</button>
         </div>
 
         <div class="body"></div>
@@ -143,12 +175,13 @@ async function readMail(id,btn){
 
   try{
     const d=await api("read","&uuid="+encodeURIComponent(id));
-    const mail=d.data||d;
-    const content=mail.body||mail.html||mail.text||"No Body";
+    const mail=d.data || d;
+    const content=mail.body || mail.html || mail.text || "No Body";
 
     const body=btn.parentElement.nextElementSibling;
     body.style.display="block";
     body.innerHTML=content;
+
     btn.innerText="Opened ✅";
 
   }catch(e){
@@ -158,25 +191,32 @@ async function readMail(id,btn){
 
 async function deleteMail(){
   if(!currentEmail) return status("No email found");
+
   if(!confirm("Delete this email?")) return;
 
+  loading=true;
   showLoader(true);
+  status("Deleting...");
 
   try{
     await api("delete","&email="+encodeURIComponent(currentEmail));
 
     localStorage.removeItem("temp_mail");
+
     currentEmail="";
     lastCount=0;
 
     emailBox.innerText="No email created";
     inbox.innerHTML="";
     mailCount.innerText="Inbox: 0";
+
     status("Deleted ✅");
 
   }catch(e){
     status("Delete Failed ❌");
   }finally{
+    loading=false;
     showLoader(false);
   }
 }
+  
