@@ -9,7 +9,7 @@
 body{
   margin:0;font-family:Arial,sans-serif;min-height:100vh;
   background:linear-gradient(135deg,#020617,#0f172a,#1e293b);
-  color:white;padding:15px;
+  color:#fff;padding:15px;
 }
 .box{
   max-width:520px;margin:auto;background:rgba(255,255,255,.08);
@@ -20,11 +20,12 @@ h2{text-align:center}
   background:#020617;border:1px solid #334155;padding:15px;
   border-radius:14px;text-align:center;font-weight:bold;word-break:break-all;
 }
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 button{
   width:100%;padding:13px;margin-top:10px;border:0;border-radius:12px;
-  background:#2563eb;color:white;font-weight:bold;
+  background:linear-gradient(135deg,#2563eb,#06b6d4);
+  color:white;font-weight:bold;cursor:pointer;
 }
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .item{
   margin-top:12px;background:#0f172a;border:1px solid #334155;
   border-radius:14px;padding:12px;
@@ -32,7 +33,7 @@ button{
 .subject{color:#38bdf8;font-weight:bold}
 .small{font-size:13px;color:#cbd5e1;margin-top:5px}
 .body{
-  background:white;color:#111;padding:12px;border-radius:12px;
+  background:#fff;color:#111;padding:12px;border-radius:12px;
   margin-top:10px;max-height:320px;overflow:auto;
 }
 .status{text-align:center;color:#facc15;margin-top:12px}
@@ -40,7 +41,6 @@ button{
 </head>
 
 <body>
-
 <div class="box">
   <h2>📩 Temp Mail Inbox</h2>
 
@@ -61,88 +61,98 @@ button{
 </div>
 
 <script>
-const API = "/api/tempmail";
+const TOKEN = "1297|Ay7NJEDVQJUieYgwG8NB38wZiqGcfu4LiJcN11cMd7a7c495";
+const BASE = "https://api.tempmail.co/v1";
 
 let currentEmail = localStorage.getItem("temp_mail") || "";
-let inboxLoading = false;
+
+const headers = {
+  "Authorization": "Bearer " + TOKEN,
+  "Accept": "application/json",
+  "Content-Type": "application/json"
+};
 
 if(currentEmail){
-  emailBox.innerText = currentEmail;
-  loadInbox(true);
+  document.getElementById("emailBox").innerText = currentEmail;
+  loadInbox();
 }
 
-setInterval(()=>{
-  if(currentEmail && !inboxLoading){
-    loadInbox(true);
+function status(text){
+  document.getElementById("status").innerText = text;
+}
+
+async function api(path, method="GET"){
+  const res = await fetch(BASE + path, {
+    method: method,
+    headers: headers
+  });
+
+  if(!res.ok){
+    throw new Error("API Error: " + res.status);
   }
-}, 5000);
 
-function status(t){
-  document.getElementById("status").innerText = t;
-}
-
-async function api(action, params=""){
-  const res = await fetch(API + "?action=" + action + params);
-  if(!res.ok) throw new Error("API Error");
+  if(res.status === 204) return {};
   return await res.json();
 }
 
 async function createMail(){
   status("Creating mail...");
-  inbox.innerHTML = "";
+  document.getElementById("inbox").innerHTML = "";
 
   try{
-    const data = await api("create");
+    const data = await api("/addresses", "POST");
+
     const email = data?.data?.email || data?.email;
 
     if(email){
       currentEmail = email;
-      localStorage.setItem("temp_mail", email);
-      emailBox.innerText = email;
+      localStorage.setItem("temp_mail", currentEmail);
+      document.getElementById("emailBox").innerText = currentEmail;
       status("Email created ✅");
-      loadInbox(true);
+      loadInbox();
     }else{
       status("Create failed ❌");
+      console.log(data);
     }
-  }catch(e){
-    status("Server/API error ❌");
+  }catch(err){
+    status("API/CORS error ❌");
+    console.error(err);
   }
 }
 
 function copyMail(){
-  if(!currentEmail) return status("No email found");
+  if(!currentEmail){
+    status("No email found");
+    return;
+  }
 
   navigator.clipboard.writeText(currentEmail);
   status("Email copied ✅");
 }
 
-async function loadInbox(silent=false){
-  if(inboxLoading) return;
-  inboxLoading = true;
+async function loadInbox(){
+  if(!currentEmail){
+    status("Create mail first");
+    return;
+  }
+
+  status("Checking inbox...");
 
   try{
-    if(!currentEmail){
-      if(!silent) status("Create mail first");
-      return;
-    }
-
-    if(!silent) status("Checking inbox...");
-
-    const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
-    let emails = data?.data || data || [];
-
+    const data = await api("/addresses/" + encodeURIComponent(currentEmail) + "/emails");
+    const emails = data?.data || data || [];
+    const inbox = document.getElementById("inbox");
     inbox.innerHTML = "";
 
     if(!Array.isArray(emails) || emails.length === 0){
-      if(!silent) status("No mail received yet");
+      status("No mail received yet");
       return;
     }
 
-    emails = emails.reverse();
     status("Inbox loaded ✅");
 
     emails.forEach(mail=>{
-      const uuid = mail.uuid || mail.id || "";
+      const uuid = mail.uuid || mail.id;
       const div = document.createElement("div");
       div.className = "item";
 
@@ -157,20 +167,17 @@ async function loadInbox(silent=false){
       inbox.appendChild(div);
     });
 
-  }catch(e){
-    if(!silent) status("Inbox load failed ❌");
-  }finally{
-    inboxLoading = false;
+  }catch(err){
+    status("Inbox load failed ❌");
+    console.error(err);
   }
 }
 
 async function readMail(uuid, btn){
-  if(!uuid) return;
-
   btn.innerText = "Loading...";
 
   try{
-    const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
+    const data = await api("/emails/" + encodeURIComponent(uuid));
     const mail = data?.data || data;
 
     const body = btn.nextElementSibling;
@@ -178,28 +185,32 @@ async function readMail(uuid, btn){
     body.innerHTML = mail.body || mail.html || mail.text || "No body found";
 
     btn.innerText = "Opened ✅";
-  }catch(e){
+  }catch(err){
     btn.innerText = "Failed ❌";
+    console.error(err);
   }
 }
 
 async function deleteMail(){
-  if(!currentEmail) return status("No email found");
+  if(!currentEmail){
+    status("No email found");
+    return;
+  }
 
   try{
-    await api("delete", "&email=" + encodeURIComponent(currentEmail));
+    await api("/addresses/" + encodeURIComponent(currentEmail), "DELETE");
 
     localStorage.removeItem("temp_mail");
     currentEmail = "";
-    emailBox.innerText = "No email created";
-    inbox.innerHTML = "";
+    document.getElementById("emailBox").innerText = "No email created";
+    document.getElementById("inbox").innerHTML = "";
     status("Deleted ✅");
 
-  }catch(e){
+  }catch(err){
     status("Delete failed ❌");
+    console.error(err);
   }
 }
 </script>
-
 </body>
 </html>
