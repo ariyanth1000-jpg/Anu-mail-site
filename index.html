@@ -41,7 +41,12 @@ button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:12px;backg
 
 <script>
 const API = "/api/tempmail";
+
 let currentEmail = localStorage.getItem("temp_mail") || "";
+let loading = false;
+
+const emailBox = document.getElementById("emailBox");
+const inbox = document.getElementById("inbox");
 
 if(currentEmail){
   emailBox.innerText = currentEmail;
@@ -49,15 +54,19 @@ if(currentEmail){
 }
 
 setInterval(()=>{
-  if(currentEmail){
+  if(currentEmail && !loading){
     loadInbox();
   }
 },10000);
 
-function status(t){ document.getElementById("status").innerText = t; }
+function status(t){
+  document.getElementById("status").innerText = t;
+}
 
 async function api(action, params=""){
-  const res = await fetch(API + "?action=" + action + params);
+  const res = await fetch(API + "?action=" + action + params + "&_=" + Date.now(), {
+    cache:"no-store"
+  });
   return await res.json();
 }
 
@@ -72,22 +81,32 @@ function copyOTP(code){
 }
 
 async function createMail(){
+  if(loading) return;
+  loading = true;
+
   status("Creating mail...");
   inbox.innerHTML = "";
+
   try{
     const data = await api("create");
     const email = data?.data?.email || data?.email;
+
     if(email){
       currentEmail = email;
       localStorage.setItem("temp_mail", email);
       emailBox.innerText = email;
       status("Email created ✅");
+      loading = false;
       loadInbox();
     }else{
       status("Create failed ❌");
       console.log(data);
     }
-  }catch(e){ status("Server/API error ❌"); }
+  }catch(e){
+    status("Server/API error ❌");
+  }finally{
+    loading = false;
+  }
 }
 
 function copyMail(){
@@ -97,24 +116,33 @@ function copyMail(){
 }
 
 async function loadInbox(){
+  if(loading) return;
   if(!currentEmail) return status("Create mail first");
+
+  loading = true;
   status("Checking inbox...");
+
   try{
     const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
     const emails = data?.data || data || [];
+
     inbox.innerHTML = "";
 
     if(!Array.isArray(emails) || emails.length === 0){
-      return status("No mail received yet");
+      status("No mail received yet");
+      return;
     }
 
     status("📦 Inbox loaded (10s) ⏱");
 
     emails.forEach(mail=>{
       const uuid = mail.uuid || mail.id;
+      if(!uuid) return;
+
       const otp = getOTP(mail.subject || "");
       const div = document.createElement("div");
       div.className = "item";
+
       div.innerHTML = `
         <div class="subject">${mail.subject || "No Subject"}</div>
         <div class="small">From: ${mail.from || mail.sender || ""}</div>
@@ -131,33 +159,55 @@ async function loadInbox(){
 
         <div class="body" style="display:none"></div>
       `;
+
       inbox.appendChild(div);
     });
-  }catch(e){ status("Inbox load failed ❌"); }
+
+  }catch(e){
+    status("Inbox load failed ❌");
+  }finally{
+    loading = false;
+  }
 }
 
 async function readMail(uuid, btn){
   btn.innerText = "Loading...";
+
   try{
     const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
     const mail = data?.data || data;
     const body = btn.parentElement.nextElementSibling;
+
     body.style.display = "block";
     body.innerHTML = mail.body || mail.html || mail.text || "No body found";
+
     btn.innerText = "Opened ✅";
-  }catch(e){ btn.innerText = "Failed ❌"; }
+  }catch(e){
+    btn.innerText = "Failed ❌";
+  }
 }
 
 async function deleteMail(){
+  if(loading) return;
   if(!currentEmail) return status("No email found");
+
+  loading = true;
+
   try{
     await api("delete", "&email=" + encodeURIComponent(currentEmail));
+
     localStorage.removeItem("temp_mail");
     currentEmail = "";
+
     emailBox.innerText = "No email created";
     inbox.innerHTML = "";
     status("Deleted ✅");
-  }catch(e){ status("Delete failed ❌"); }
+
+  }catch(e){
+    status("Delete failed ❌");
+  }finally{
+    loading = false;
+  }
 }
 </script>
 
