@@ -1,6 +1,6 @@
 const API = "/api/tempmail";
 let currentEmail = localStorage.getItem("temp_mail") || "";
-let openedBodies = {};
+let mailIds = new Set();
 
 if (currentEmail) {
   emailBox.innerText = currentEmail;
@@ -18,7 +18,7 @@ function status(t) {
 }
 
 async function api(action, params = "") {
-  const res = await fetch(API + "?action=" + action + params);
+  const res = await fetch(API + "?action=" + action + params + "&_=" + Date.now());
   return await res.json();
 }
 
@@ -35,7 +35,7 @@ function copyOTP(code) {
 async function createMail() {
   status("Creating mail...");
   inbox.innerHTML = "";
-  openedBodies = {};
+  mailIds.clear();
 
   try {
     const data = await api("create");
@@ -58,7 +58,6 @@ async function createMail() {
 
 function copyMail() {
   if (!currentEmail) return status("No email found");
-
   navigator.clipboard.writeText(currentEmail);
   status("Email copied ✅");
 }
@@ -66,27 +65,29 @@ function copyMail() {
 async function loadInbox() {
   if (!currentEmail) return status("Create mail first");
 
-  status("Checking inbox...");
-
   try {
     const data = await api("inbox", "&email=" + encodeURIComponent(currentEmail));
     const emails = data?.data || data || [];
 
-    inbox.innerHTML = "";
-
     if (!Array.isArray(emails) || emails.length === 0) {
-      return status("No mail received yet");
+      if (mailIds.size === 0) status("No mail received yet");
+      return;
     }
 
-    status("Inbox loaded ✅");
+    let newCount = 0;
 
-    emails.forEach(mail => {
+    emails.slice().reverse().forEach(mail => {
       const uuid = mail.uuid || mail.id;
+      if (!uuid || mailIds.has(uuid)) return;
+
+      mailIds.add(uuid);
+      newCount++;
+
       const otp = getOTP(mail.subject || "");
-      const savedBody = openedBodies[uuid] || "";
 
       const div = document.createElement("div");
       div.className = "item";
+      div.id = "mail_" + uuid;
 
       div.innerHTML = `
         <div class="subject">${mail.subject || "No Subject"}</div>
@@ -102,11 +103,15 @@ async function loadInbox() {
           <button onclick="readMail('${uuid}', this)">Open Mail</button>
         </div>
 
-        <div class="body" style="display:${savedBody ? "block" : "none"}">${savedBody}</div>
+        <div class="body" style="display:none"></div>
       `;
 
-      inbox.appendChild(div);
+      inbox.prepend(div);
     });
+
+    if (newCount > 0) {
+      status("Inbox updated ✅");
+    }
 
   } catch (e) {
     status("Inbox load failed ❌");
@@ -119,13 +124,10 @@ async function readMail(uuid, btn) {
   try {
     const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
     const mail = data?.data || data;
-    const content = mail.body || mail.html || mail.text || "No body found";
-
-    openedBodies[uuid] = content;
 
     const body = btn.parentElement.nextElementSibling;
     body.style.display = "block";
-    body.innerHTML = content;
+    body.innerHTML = mail.body || mail.html || mail.text || "No body found";
 
     btn.innerText = "Opened ✅";
   } catch (e) {
@@ -141,7 +143,7 @@ async function deleteMail() {
 
     localStorage.removeItem("temp_mail");
     currentEmail = "";
-    openedBodies = {};
+    mailIds.clear();
 
     emailBox.innerText = "No email created";
     inbox.innerHTML = "";
