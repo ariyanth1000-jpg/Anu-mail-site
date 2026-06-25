@@ -26,13 +26,13 @@ button{width:100%;padding:13px;margin-top:10px;border:0;border-radius:12px;backg
   <div class="mail" id="emailBox">No email created</div>
 
   <div class="grid">
-    <button onclick="createMail()">Create Mail</button>
-    <button onclick="copyMail()">Copy Mail</button>
+    <button onclick="createMail()">✍🏼 Create</button>
+    <button onclick="copyMail()">⧉ Copy</button>
   </div>
 
   <div class="grid">
-    <button onclick="loadInbox()">Refresh</button>
-    <button onclick="deleteMail()">Delete</button>
+    <button onclick="loadInbox()">⏳ Refresh</button>
+    <button onclick="deleteMail()">🗑 Delete</button>
   </div>
 
   <div class="status" id="status"></div>
@@ -108,7 +108,7 @@ async function loadInbox(){
       return status("No mail received yet");
     }
 
-    status("Inbox loaded (10s)");
+    status("📦 Inbox loaded (10s) ⏱");
 
     emails.forEach(mail=>{
       const uuid = mail.uuid || mail.id;
