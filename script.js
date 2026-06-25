@@ -1,5 +1,6 @@
 const API = "/api/tempmail";
 let currentEmail = localStorage.getItem("temp_mail") || "";
+let openedBodies = {};
 
 if (currentEmail) {
   emailBox.innerText = currentEmail;
@@ -34,6 +35,7 @@ function copyOTP(code) {
 async function createMail() {
   status("Creating mail...");
   inbox.innerHTML = "";
+  openedBodies = {};
 
   try {
     const data = await api("create");
@@ -81,6 +83,7 @@ async function loadInbox() {
     emails.forEach(mail => {
       const uuid = mail.uuid || mail.id;
       const otp = getOTP(mail.subject || "");
+      const savedBody = openedBodies[uuid] || "";
 
       const div = document.createElement("div");
       div.className = "item";
@@ -99,7 +102,7 @@ async function loadInbox() {
           <button onclick="readMail('${uuid}', this)">Open Mail</button>
         </div>
 
-        <div class="body" style="display:none"></div>
+        <div class="body" style="display:${savedBody ? "block" : "none"}">${savedBody}</div>
       `;
 
       inbox.appendChild(div);
@@ -116,10 +119,13 @@ async function readMail(uuid, btn) {
   try {
     const data = await api("read", "&uuid=" + encodeURIComponent(uuid));
     const mail = data?.data || data;
+    const content = mail.body || mail.html || mail.text || "No body found";
+
+    openedBodies[uuid] = content;
 
     const body = btn.parentElement.nextElementSibling;
     body.style.display = "block";
-    body.innerHTML = mail.body || mail.html || mail.text || "No body found";
+    body.innerHTML = content;
 
     btn.innerText = "Opened ✅";
   } catch (e) {
@@ -135,6 +141,8 @@ async function deleteMail() {
 
     localStorage.removeItem("temp_mail");
     currentEmail = "";
+    openedBodies = {};
+
     emailBox.innerText = "No email created";
     inbox.innerHTML = "";
     status("Deleted ✅");
